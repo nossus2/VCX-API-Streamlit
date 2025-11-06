@@ -7,6 +7,8 @@ import pandas as pd
 import time
 from typing import Optional, Tuple
 from VCX import *
+from pathlib import Path
+import os, json
 
 import re
 import matplotlib.pyplot as plt
@@ -15,8 +17,6 @@ import matplotlib.pyplot as plt
 # Utilities
 # ==============================
 
-import os, json
-from pathlib import Path
 
 def resolve_db_path() -> Path:
     # 1) If env var is set AND exists, use it (works in Docker)
