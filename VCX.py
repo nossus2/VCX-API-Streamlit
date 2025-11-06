@@ -1,14 +1,9 @@
 # class Veracross: code adapted from https://github.com/beckf/veracross_api/
-
 import parse
 import requests
 import time
 import sys
 import os
-import json
-import streamlit as st
-
-from tabulate import tabulate
 
 sys.path.append('../..')
 
@@ -175,26 +170,33 @@ class Veracross:
 
         return data
 
-def find_any_id_by_item(data_dict, item_to_find, to_find, to_return):
+def find_any_id_by_item(data, item_to_find, to_find, to_return):
     """
-    Searches the 'users' list in the data dictionary for a specific email
-    and returns the corresponding 'sourcedId'.
+    Look through one or more 'users' containers to find a user where
+    user[item_to_find] == to_find, and return user[to_return].
+
+    Works with:
+      - data: dict with key 'users' -> list[dict]
+      - data: list[dict], each with key 'users' -> list[dict]
+
+    Returns:
+      The value of user[to_return] from the first match, or None if not found.
     """
-    # Access the list of users, defaulting to an empty list if 'users' key is missing
-    user_list = data_dict.get('users', [])
+    # Normalize input to a list of dict containers
+    if isinstance(data, dict):
+        containers = [data]
+    elif isinstance(data, list):
+        containers = [d for d in data if isinstance(d, dict)]
+    else:
+        return None
 
-    # Iterate through each user dictionary in the list
-    for user in user_list:
-        # Check if the 'email' field matches the email we're looking for
-        # Using .get('email') is safer as it returns None if 'email' key doesn't exist
-        if user.get(item_to_find) == to_find:
-            # If it matches, return the 'sourcedId'
-            # .get('sourcedId') is also safer
-            return user.get(to_return)
+    for container in containers:
+        users = container.get('users') or []
+        for user in users:
+            if isinstance(user, dict) and user.get(item_to_find) == to_find:
+                return user.get(to_return)
 
-    # If the loop finishes without finding the email, return None
     return None
-
 
 def find_all_matches(data_dict, list_item, to_return, item_to_find=None, comparison=None):
     """
@@ -223,145 +225,17 @@ def find_all_matches(data_dict, list_item, to_return, item_to_find=None, compari
     # This handles Case 3 (no matches) by returning an empty list
     return results_list
 
-# Code starts here :)
-c = {
-    "school": credentials[0],
-    "client_id": credentials[1],
-    "client_secret": credentials[2],
-    "scopes": ['https://purl.imsglobal.org/spec/or/v1p1/scope/roster-core.readonly','https://purl.imsglobal.org/spec/or/v1p1/scope/roster.readonly','classes:list', 'academics.classes:list', 'academics.classes:read', 'academics.enrollments:list', 'academics.enrollments:read', 'classes:read', 'report_card.enrollments.qualitative_grades:list']
-}
+def filter_pairs(flat_list, banned=("Study Hall", "DEAR", "Lunch", "Help", "Advisory")):
+    """
+    flat_list: [id1, name1, id2, name2, ...]
+    returns a new flat list with banned name pairs removed
+    """
+    out = []
+    it = iter(flat_list)
+    for id_val, name in zip(it, it):  # step through in pairs
+        name_str = str(name).strip()
+        if any(bad.lower() in name_str.lower() for bad in banned):
+            continue  # skip this pair
+        out.extend([id_val, name])
+    return out
 
-# student_email = input("Please enter the student email address: ")
-
-
-endpointOne = "students"
-endpointTwo = "classes"
-vc = Veracross(c)
-
-# Pulling student data into the student_list.json file
-# Veracross returns 100 max files - must call it 3 times
-student_list =[]
-num = 100
-st.text_input("Do you want to update the student list (only necessary if there are new students): ", key="students")
-update_students = st.session_state.students
-
-#update_students = input("Do you want to update the student list? (y/n): ")
-if update_students.lower() == "y":
-    student_list.append(vc.pull("oneRoster", endpointOne))
-    student_list.append(vc.pull("oneRoster", endpointOne + "?offset=" + str(num)))
-    student_list.append(vc.pull("oneRoster", endpointOne + "?offset=" + str(num+100)))
-    with open("student_list.json", "w") as outfile:
-        outfile.seek(0)
-        outfile.truncate()
-        json.dump(student_list, outfile)
-
-with open("student_list.json", "r") as infile:
-    student_list = json.load(infile)
-
-# Stripping down the list to iterate through it more easily
-# sourcedId = find_any_id_by_item(student_list, 'email', student_email, 'sourcedId')
-
-
-
-
-# Pull a list of students via OneRoster
-# data = vc.pull("oneRoster", endpointOne)
-# print("TOTAL ITEMS:", endpointOne, len(data["users"]))
-
-# Return the sourcedId for the requested student
-sourcedId = None
-while sourcedId is None:
-    st.text_input("Student email or 'x' to exit: ", key="email")
-    student_email = st.session_state.email
-    if student_email == "x".lower():
-        break
-    for i in range(0,3):
-        sourcedId = find_any_id_by_item(student_list[i], 'email', student_email, 'sourcedId')
-        if sourcedId is not None:
-            break
-
-
-# Pull class data for the student from OneRoster
-endpointThree = "students/" + sourcedId + "/classes"
-classes_data = vc.pull("oneRoster", endpointThree)
-
-# Extract all veracrossId's from the data
-veracrossId = find_all_matches(classes_data, "classes", "classCode")
-
-endpointFour = "students/"+sourcedId
-student_data = vc.pull("oneRoster", endpointFour)
-
-# Extract identifier which is the Veracross student ID number
-studentId = student_data.get('user',{}).get('identifier', 'Not found')
-print(studentId)
-
-# Pull the enrollment data for the student using Veracross ID.
-# This gives us the enrollment ids which we need for grade reports.
-endpointFive = "academics/enrollments"
-enrollments_data = vc.pull("non", endpointFive + "?person_id=" + studentId)
-
-# Extracts enrollments Ids and class descriptions separate lists.
-class_descriptions = []
-enrollment_ids = []
-for item in enrollments_data:
-    enrollment_ids.append(item.get('id'))
-    class_descriptions.append(item.get('class_description'))
-
-# Pulls qualitative report card data and adds class descriptions to the lists
-# Counts down through the classes as it pulls data from each one
-qualitative_data = []
-for i in range(0, len(enrollment_ids)):
-    endpointSix = "report_card/enrollments/" + str(enrollment_ids[i]) + "/qualitative_grades"
-    qd = vc.pull("non",endpointSix)
-    qualitative_data.append(qd)
-    qualitative_data.append(class_descriptions[i])
-    print(len(enrollment_ids) - i, end=" ")
-print()
-
-# Create an empty list to hold the processed data
-processed_data = []
-
-# Iterate through the main list using an index
-# This allows us to look at the next item
-for i in range(len(qualitative_data)):
-    current_item = qualitative_data[i]
-
-    # Check if the current item is a list (which might contain dicts)
-    if isinstance(current_item, list):
-
-        # The class name is the next item in the list
-        class_name = None
-        if (i + 1) < len(qualitative_data) and isinstance(qualitative_data[i + 1], str):
-            class_name = qualitative_data[i + 1]
-
-        # Iterate through the dictionaries in this list
-        for item in current_item:
-            # We must check if 'item' is a dictionary,
-            # because the list could be empty (like at the start)
-            if isinstance(item, dict):
-                # Safely get the proficiency level abbreviation
-                abbreviation = item.get('proficiency_level', {}).get('abbreviation')
-
-                # Check if the abbreviation is NOT None (the filter)
-                if abbreviation is not None:
-                    # If it's not None, extract the required information
-                    gp_abbr = item.get('grading_period', {}).get('abbreviation')
-                    rc_desc = item.get('rubric_criteria', {}).get('description')
-
-                    # Create a new dictionary with the extracted data
-                    extracted_item = {
-                        'class': class_name,  # The new field
-                        'grading_period': gp_abbr,
-                        'description': rc_desc,
-                        'score': abbreviation
-                    }
-
-                    # Add this new dictionary to our processed list
-                    processed_data.append(extracted_item)
-
-# Creates the table with alignment for numeric columns and a different style
-table = tabulate(processed_data,headers = "keys", tablefmt="pipe",colalign=("left", "center", "right"))
-
-# Prints the table
-#print(table)
-st.write(table)

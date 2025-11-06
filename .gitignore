@@ -1,6 +1,6 @@
 *.env
-student_classes.json
-student_list.json
+app/data/student_classes.json
+app/data/student_list.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
