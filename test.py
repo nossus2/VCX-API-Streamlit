@@ -6,6 +6,7 @@ import time
 import sys
 import os
 import json
+import streamlit as st
 
 from tabulate import tabulate
 
@@ -230,7 +231,8 @@ c = {
     "scopes": ['https://purl.imsglobal.org/spec/or/v1p1/scope/roster-core.readonly','https://purl.imsglobal.org/spec/or/v1p1/scope/roster.readonly','classes:list', 'academics.classes:list', 'academics.classes:read', 'academics.enrollments:list', 'academics.enrollments:read', 'classes:read', 'report_card.enrollments.qualitative_grades:list']
 }
 
-student_email = input("Please enter the student email address: ")
+# student_email = input("Please enter the student email address: ")
+
 
 endpointOne = "students"
 endpointTwo = "classes"
@@ -240,7 +242,10 @@ vc = Veracross(c)
 # Veracross returns 100 max files - must call it 3 times
 student_list =[]
 num = 100
-update_students = input("Do you want to update the student list? (y/n): ")
+st.text_input("Do you want to update the student list (only necessary if there are new students): ", key="students")
+update_students = st.session_state.students
+
+#update_students = input("Do you want to update the student list? (y/n): ")
 if update_students.lower() == "y":
     student_list.append(vc.pull("oneRoster", endpointOne))
     student_list.append(vc.pull("oneRoster", endpointOne + "?offset=" + str(num)))
@@ -254,8 +259,7 @@ with open("student_list.json", "r") as infile:
     student_list = json.load(infile)
 
 # Stripping down the list to iterate through it more easily
-student_list = student_list[0]
-sourcedId = find_any_id_by_item(student_list, 'email', student_email, 'sourcedId')
+# sourcedId = find_any_id_by_item(student_list, 'email', student_email, 'sourcedId')
 
 
 
@@ -267,24 +271,15 @@ sourcedId = find_any_id_by_item(student_list, 'email', student_email, 'sourcedId
 # Return the sourcedId for the requested student
 sourcedId = None
 while sourcedId is None:
-    sourcedId = find_any_id_by_item(student_list, 'email', student_email, 'sourcedId')
-    if sourcedId is None:
-        print("Email address is not found.")
-        student_email = input("Please enter the student email address again: ")
+    st.text_input("Student email or 'x' to exit: ", key="email")
+    student_email = st.session_state.email
+    if student_email == "x".lower():
+        break
+    for i in range(0,3):
+        sourcedId = find_any_id_by_item(student_list[i], 'email', student_email, 'sourcedId')
+        if sourcedId is not None:
+            break
 
-
-
-# Iterate through the GET since it only pulls 100 records at a time
-"""num = 100
-while sourcedId is None:
-    data = vc.pull("oneRoster", endpointOne + "?offset=" + str(num))
-    print("TOTAL ITEMS:", endpointOne, num)
-    sourcedId = find_any_id_by_item(data, 'email', student_email, 'sourcedId')
-    num += 100
-    if num > 300:
-        print("Email address is not found.")
-        student_email = input("Please enter the student email address again: ")
-        num = 0"""
 
 # Pull class data for the student from OneRoster
 endpointThree = "students/" + sourcedId + "/classes"
@@ -368,4 +363,5 @@ for i in range(len(qualitative_data)):
 table = tabulate(processed_data,headers = "keys", tablefmt="pipe",colalign=("left", "center", "right"))
 
 # Prints the table
-print(table)
+#print(table)
+st.write(table)
