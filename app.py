@@ -135,7 +135,6 @@ c = {
                'academics.classes:list', 'academics.classes:read', 'academics.enrollments:list',
                'academics.enrollments:read', 'classes:read', 'report_card.enrollments.qualitative_grades:list']
 }
-st.write(credentials[0])
 endpointOne = "students"
 endpointTwo = "classes"
 vc = Veracross(c)
@@ -178,7 +177,8 @@ if st.session_state.last_updated:
 
 with st.form("email_form", clear_on_submit=False):
     st.text_input(
-        "Student email address",
+    'credentials: ', credentials[0],
+    "Student email address",
         key="email",  # <-- the widget writes directly to st.session_state.email
         placeholder="name@indianmountain.org",
         help="Enter the email to look up in Veracross database."
@@ -230,6 +230,10 @@ if st.session_state.phase == "collecting":
             endpointThree = "students/" +  st.session_state.sourcedId + "/classes"
             classes_data = vc.pull("oneRoster", endpointThree)
             print("pulled classes data")
+            if classes_data is None:
+                # Force a clear error instead of a 'NoneType' crash
+                raise Exception(
+                    "The vc.pull() function returned None. This most likely indicates an API authorization failure (401 Error), an invalid endpoint, or empty data. Please check your API keys, scopes, and the 'endpointFour' variable.")
 
             # Extract all veracrossId's from the data
             veracrossId = find_all_matches(classes_data, "classes", "classCode")
