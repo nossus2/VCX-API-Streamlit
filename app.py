@@ -135,6 +135,7 @@ c = {
                'academics.classes:list', 'academics.classes:read', 'academics.enrollments:list',
                'academics.enrollments:read', 'classes:read', 'report_card.enrollments.qualitative_grades:list']
 }
+st.write(credentials[0])
 endpointOne = "students"
 endpointTwo = "classes"
 vc = Veracross(c)
