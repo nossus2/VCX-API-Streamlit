@@ -42,11 +42,6 @@ def resolve_db_path() -> Path:
     # 3) As a last resort, return the default under /app/data
     return project_root / "data" / "student_list.json"
 
-
-    # 3) Last resort: point to 'app/data/student_list.json' under project root
-    # (Create the folder/file on first save if needed)
-    return candidates[0]  # or pick the one that matches your structure
-
 DB_PATH = resolve_db_path()
 print(DB_PATH)
 
@@ -97,6 +92,26 @@ DEFAULT_STATE = {
     "last_updated": None,  # timestamp of last successful update
 }
 
+# 1) Gatekeeping: block unauthenticated access immediately
+if st.session_state.get("authentication_status") is not True:
+    # Optional: collapse the sidebar to avoid a brief flash of page nav
+    st.set_page_config(initial_sidebar_state="collapsed")
+    # Send the user to the login page
+    st.switch_page("log-in.py")
+    st.stop()  # make absolutely sure nothing below renders
+
+# 2) (Optional) role-based guard
+# role = st.session_state.get("user", {}).get("role")
+# if role not in ("teacher", "admin"):
+#     st.error("You do not have access to this page.")
+#     st.stop()
+
+# 3) Normal page content below—safe to render
+st.set_page_config(page_title="Student Interim Search", page_icon="📊", layout="wide")
+
+st.title("Student Interim Search")
+st.caption(f"You are logged in.")
+
 for k, v in DEFAULT_STATE.items():
     st.session_state.setdefault(k, v)
 
@@ -121,8 +136,6 @@ if "email_input" not in st.session_state:
 # UI
 # ==============================
 
-st.set_page_config(page_title="Student Interim Report", page_icon="📧", layout="wide")
-st.title("Student Interim Report")
 st.caption("Enter an email, validate against Veracross database, run API pipeline, and export the results.")
 
 # ---- Header action row ----
@@ -436,4 +449,4 @@ if st.session_state.phase == "error":
 
 # Idle (first load or after editing email)
 if st.session_state.phase == "idle":
-    st.info("Enter an email above and click **Lookup** to begin.")
+    st.info("Enter an email above and click **Submit** to begin.")
