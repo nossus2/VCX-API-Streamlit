@@ -84,7 +84,7 @@ def role_of(u):
 if auth_status is False:
     st.error("Invalid username or password.")
 elif auth_status is None:
-    st.info("Please sign in.")
+    st.info("")
 else:
     role = role_of(username)
     st.success(f"Signed in as **{name}** ({role or 'user'})")

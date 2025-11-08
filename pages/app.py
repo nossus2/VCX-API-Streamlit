@@ -17,23 +17,31 @@ import matplotlib.pyplot as plt
 # ==============================
 
 
+from pathlib import Path
+
 def resolve_db_path() -> Path:
-    # 1) If env var is set AND exists, use it (works in Docker)
+    # 1) Environment variable wins (recommended in Docker)
     env_path = os.getenv("STUDENT_DB_PATH")
     if env_path:
         p = Path(env_path)
         if p.exists():
             return p
 
-    # 2) Try typical local layouts
-    here = Path(__file__).resolve().parent
+    # 2) Derive project root as parent of /pages (i.e., /app)
+    here = Path(__file__).resolve()
+    project_root = here.parents[1]   # /app
+
     candidates = [
-        here / "app" / "data" / "student_list.json",             # if this file is inside app/
-        here.parent / "app" / "data" / "student_list.json",  # if this file is at project root
+        project_root / "data" / "student_list.json",     # /app/data/student_list.json  (Docker & prod)
+        here.parent / "data" / "student_list.json",      # /app/pages/data/student_list.json (if you ever keep data alongside the page)
     ]
     for c in candidates:
         if c.exists():
             return c
+
+    # 3) As a last resort, return the default under /app/data
+    return project_root / "data" / "student_list.json"
+
 
     # 3) Last resort: point to 'app/data/student_list.json' under project root
     # (Create the folder/file on first save if needed)
