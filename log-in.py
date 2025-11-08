@@ -101,14 +101,14 @@ else:
     t = st.tabs(tabs)
 
     with t[0]:
-        st.subheader("Dashboard")
+        st.subheader("")
         st.write("Welcome!")
 
     idx = 1
     if "📊 Teacher Tools" in tabs:
         with t[idx]:
             st.subheader("Teacher Tools")
-            st.write("Upload rosters, view reports, etc.")
+            st.write("")
         idx += 1
     if "🛠️ Admin Panel" in tabs:
         with t[idx]:
