@@ -5,8 +5,8 @@ import time
 import sys
 import os
 
-import sys
 from pathlib import Path
+
 project_root = Path(__file__).resolve().parents[1]  # /app
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
@@ -31,7 +31,7 @@ class Veracross:
         self.scopes = config["scopes"]
         # Requests Session
         self.session = requests.Session()
-              # Rate limit defaults
+        # Rate limit defaults
         self.rate_limit_remaining = 300
         self.rate_limit_reset = 0
         # Default page size
@@ -41,9 +41,14 @@ class Veracross:
         self.session.headers.update({'Accept': 'application/json',
                                      'X-Page-Size': str(self.page_size)
                                      })
-              # DEBUG Logs
+        # ... (this is the existing line)
+        self.session.headers.update({'Accept': 'application/json',
+                                     'Authorization': f'Bearer {self.bearer_token}'})
+
+        # DEBUG Logs
         # When set, dump a bunch of info
         self.debug = False
+
     def __repr__(self):
         if self.bearer_token:
             return f"Veracross_API3 connected to {self.api_base_url}"
@@ -69,6 +74,8 @@ class Veracross:
         headers = {'Accept': 'application/json',
                    'Content-Type': 'application/x-www-form-urlencoded'}
 
+        token_json = {}  # Define in case post fails
+
         try:
             payload = {
                 'client_id': self.client_id,
@@ -77,16 +84,51 @@ class Veracross:
                 'scope': ' '.join(self.scopes)
             }
             r = s.post(self.token_url, data=payload, headers=headers)
-            json = r.json()
 
-            self.bearer_token = json["access_token"]
+            # Check for HTTP errors (like 400, 401, 500)
+            r.raise_for_status()
+
+            # If no HTTP error, get the JSON
+            token_json = r.json()
+
+            # Now, try to get the key
+            self.bearer_token = token_json["access_token"]
+
+            # --- If we get here, it worked ---
             self.session.headers.update({'Authorization': 'Bearer ' + self.bearer_token})
-
             self.debug_log(f"Bearer token: {self.bearer_token}")
+            return json["access_token"]  # Note: This should be token_json["access_token"]
 
-            return json["access_token"]
+        except requests.exceptions.HTTPError as e:
+            # --- CATCHES HTTP ERRORS (400, 401, 503) ---
+            import sys
+            print(f"--- VCX.py HTTP ERROR ---", file=sys.stderr)
+            print(f"The token request failed with an HTTP error.", file=sys.stderr)
+            print(f"Error: {e}", file=sys.stderr)
+            print(f"Response Status: {e.response.status_code}", file=sys.stderr)
+            print(f"Response Text: {e.response.text}", file=sys.stderr)
+            print(f"--- END VCX.py HTTP ERROR ---", file=sys.stderr)
+            return None  # Fail
+
+        except KeyError as e:
+            # --- CATCHES THE 'access_token' ERROR ---
+            import sys
+            print(f"--- VCX.py KEYERROR ---", file=sys.stderr)
+            print(f"The API server responded, but did not return a token.", file=sys.stderr)
+            print(f"The missing key was: {e}", file=sys.stderr)
+            print(f"The API server's *full response* was:", file=sys.stderr)
+            print(token_json, file=sys.stderr)
+            print(f"--- END VCX.py KEYERROR ---", file=sys.stderr)
+            return None  # Fail
+
         except Exception as e:
-            print(e)
+            # --- CATCHES ALL OTHER ERRORS ---
+            import sys
+            print(f"--- VCX.py UNKNOWN ERROR ---", file=sys.stderr)
+            print(f"An unexpected error occurred in get_authorization_token.", file=sys.stderr)
+            print(f"Error: {e}", file=sys.stderr)
+            print(f"--- END VCX.py UNKNOWN ERROR ---", file=sys.stderr)
+            return None  # Fail
 
     def check_rate_limit(self, headers):
         if "X-Rate-Limit-Remaining" in headers:
@@ -175,6 +217,7 @@ class Veracross:
 
         return data
 
+
 def find_any_id_by_item(data, item_to_find, to_find, to_return):
     """
     Look through one or more 'users' containers to find a user where
@@ -203,6 +246,7 @@ def find_any_id_by_item(data, item_to_find, to_find, to_return):
 
     return None
 
+
 def find_all_matches(data_dict, list_item, to_return, item_to_find=None, comparison=None):
     """
     Searches a list in the dictionary and returns a *list* of values.
@@ -230,6 +274,7 @@ def find_all_matches(data_dict, list_item, to_return, item_to_find=None, compari
     # This handles Case 3 (no matches) by returning an empty list
     return results_list
 
+
 def filter_pairs(flat_list, banned=("Study Hall", "DEAR", "Lunch", "Help", "Advisory")):
     """
     flat_list: [id1, name1, id2, name2, ...]
@@ -243,4 +288,3 @@ def filter_pairs(flat_list, banned=("Study Hall", "DEAR", "Lunch", "Help", "Advi
             continue  # skip this pair
         out.extend([id_val, name])
     return out
-
