@@ -1,4 +1,3 @@
-
 import streamlit as st
 import json, os
 from json import JSONDecodeError
@@ -12,40 +11,6 @@ import os, json
 
 import re
 import matplotlib.pyplot as plt
-
-# --- LOUD DEBUGGING AT THE VERY TOP ---
-st.set_page_config(layout="wide")
-st.title("🐞 VCX APP DEBUGGER")
-
-# 1. Prove this file is running
-st.header("1. File Execution Test")
-st.success("This message is from your local `app.py`. The file is being copied and run correctly!")
-
-# 2. Check Environment Variables
-st.header("2. Environment Variable Check")
-st.write("Checking variables the container sees:")
-
-try:
-    school = os.environ['school']
-    client_id = os.environ['client_id']
-    secret = os.environ['secret']
-    db_path = os.environ['STUDENT_DB_PATH']
-
-    st.json({
-        "school": school,
-        "client_id": client_id,
-        "secret_is_set": f"True, length={len(secret)}", # Never print the secret
-        "STUDENT_DB_PATH": db_path
-    })
-    st.success("All required environment variables are loaded!")
-except KeyError as e:
-    st.error(f"FATAL: Missing environment variable: {e}. The `--env-file` command failed or the .env file is incomplete.")
-    st.stop() # Stop the script here
-
-st.header("3. App Logic")
-st.info("Attempting to run the rest of the app...")
-st.divider()
-# --- END OF LOUD DEBUGGING ---
 
 # ==============================
 # Utilities
