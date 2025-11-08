@@ -4,7 +4,9 @@ from pathlib import Path
 import streamlit as st
 import streamlit_authenticator as stauth
 
-CONFIG_PATH = Path("app/data/config.yaml")
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = BASE_DIR / "data" / "config.yaml"
 
 @st.cache_resource
 def load_config():
@@ -13,8 +15,12 @@ def load_config():
 
 cfg = load_config()
 
-st.set_page_config(page_title=cfg["ui"].get("title", "Portal"), page_icon="🔐", layout="centered")
-
+st.set_page_config(
+    page_title=cfg["ui"].get("title", "Portal"),
+    page_icon="🔐",
+    layout="centered",
+    initial_sidebar_state="collapsed",  # or "expanded" if you prefer
+)
 # Build authenticator with hashed passwords (we already hashed them)
 authenticator = stauth.Authenticate(
     credentials=cfg["credentials"],            # hashed dict
@@ -31,7 +37,6 @@ st.caption(cfg["ui"].get("subtitle", ""))
 # Hide the sidebar page navigation until the user is authenticated
 if st.session_state.get("authentication_status") is not True:
     # Start with the sidebar collapsed AND hide the page list
-    st.set_page_config(initial_sidebar_state="collapsed")
     st.markdown("""
         <style>
         /* Hide the built-in multi-page navigation */
