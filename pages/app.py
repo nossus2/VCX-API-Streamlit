@@ -211,7 +211,6 @@ if st.session_state.last_updated:
 
 with st.form("email_form", clear_on_submit=False):
     st.text_input(
-    'credentials: ', credentials[0],
     "Student email address",
         key="email",  # <-- the widget writes directly to st.session_state.email
         placeholder="name@indianmountain.org",
