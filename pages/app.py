@@ -107,14 +107,13 @@ if st.session_state.get("authentication_status") is not True:
 #     st.stop()
 
 # 3) Normal page content below—safe to render
-st.set_page_config(page_title="Student Interim Search", page_icon="📊", layout="wide")
+st.set_page_config(page_title="IMS Grade Query", page_icon="📊", layout="wide")
 
-st.title("Student Interim Search")
+st.title("IMS Grade Query")
 st.caption(f"You are logged in.")
 
 for k, v in DEFAULT_STATE.items():
     st.session_state.setdefault(k, v)
-
 
 def reset_for_new_lookup():
     for k, v in DEFAULT_STATE.items():
@@ -153,7 +152,8 @@ c = {
     "scopes": ['https://purl.imsglobal.org/spec/or/v1p1/scope/roster-core.readonly',
                'https://purl.imsglobal.org/spec/or/v1p1/scope/roster.readonly', 'classes:list',
                'academics.classes:list', 'academics.classes:read', 'academics.enrollments:list',
-               'academics.enrollments:read', 'classes:read', 'report_card.enrollments.qualitative_grades:list']
+               'academics.enrollments:read', 'classes:read', 'report_card.enrollments.qualitative_grades:list',
+               'report_card.enrollments.numeric_grades:list']
 }
 endpointOne = "students"
 endpointTwo = "classes"
@@ -202,6 +202,14 @@ with st.form("email_form", clear_on_submit=False):
         placeholder="name@indianmountain.org",
         help="Enter the email to look up in Veracross database."
     )
+
+    grade_mode = st.selectbox(
+        "What would you like to view?",
+        options=["Interims", "Numeric Grades"],
+        index=0,  # default to Interims
+        help="Choose 'Interims' or 'Numeric Grades'."
+    )
+
     submitted = st.form_submit_button("Submit", type="primary")
 
 # --- submit handler: do NOT assign to st.session_state.email; it's already set by the widget ---
@@ -278,57 +286,114 @@ if st.session_state.phase == "collecting":
                 enrollment_ids.append(item.get('class_description'))
             enrollment_ids = filter_pairs(enrollment_ids)
 
-            # Pulls qualitative report card data and adds class descriptions to the lists
-            # Counts down through the classes as it pulls data from each one
-            qualitative_data = []
-            for i in range(0, len(enrollment_ids), 2):
-                endpointSix = "report_card/enrollments/" + str(enrollment_ids[i]) + "/qualitative_grades"
-                qd = vc.pull("non", endpointSix)
-                qualitative_data.append(qd)
-                qualitative_data.append(enrollment_ids[i+1])
-                writingSpace.markdown(str(int((len(enrollment_ids) - i)/2)) + " classes left to process.")
-                if len(enrollment_ids) -i == 2:
-                    writingSpace.markdown("")
+            # insert condition - pull quantitative or qualitative depending on dropdown above
+            st.session_state.grade_mode = grade_mode
+            if st.session_state.grade_mode == "Interims":
+                    # Pulls qualitative report card data and adds class descriptions to the lists
+                    # Counts down through the classes as it pulls data from each one
+                qualitative_data = []
+                for i in range(0, len(enrollment_ids), 2):
+                    endpointSix = "report_card/enrollments/" + str(enrollment_ids[i]) + "/qualitative_grades"
+                    qd = vc.pull("non", endpointSix)
+                    qualitative_data.append(qd)
+                    qualitative_data.append(enrollment_ids[i+1])
+                    writingSpace.markdown(str(int((len(enrollment_ids) - i)/2)) + " classes left to process.")
+                    if len(enrollment_ids) -i == 2:
+                        writingSpace.markdown("")
 
-            # Create an empty list to hold the processed data
-            processed_data = []
-            # Iterate through the main list using an index
-            # This allows us to look at the next item
-            for i in range(len(qualitative_data)):
-                current_item = qualitative_data[i]
+                # Create an empty list to hold the processed data
+                processed_data = []
+                # Iterate through the main list using an index
+                # This allows us to look at the next item
+                for i in range(len(qualitative_data)):
+                    current_item = qualitative_data[i]
 
-                # Check if the current item is a list (which might contain dicts)
-                if isinstance(current_item, list):
+                    # Check if the current item is a list (which might contain dicts)
+                    if isinstance(current_item, list):
 
-                    # The class name is the next item in the list
-                    class_name = None
-                    if (i + 1) < len(qualitative_data) and isinstance(qualitative_data[i + 1], str):
-                        class_name = qualitative_data[i + 1]
+                        # The class name is the next item in the list
+                        class_name = None
+                        if (i + 1) < len(qualitative_data) and isinstance(qualitative_data[i + 1], str):
+                            class_name = qualitative_data[i + 1]
 
-                    # Iterate through the dictionaries in this list
-                    for item in current_item:
-                        # We must check if 'item' is a dictionary,
-                        # because the list could be empty (like at the start)
-                        if isinstance(item, dict):
-                            # Safely get the proficiency level abbreviation
-                            abbreviation = item.get('proficiency_level', {}).get('abbreviation')
+                        # Iterate through the dictionaries in this list
+                        for item in current_item:
+                            # We must check if 'item' is a dictionary,
+                            # because the list could be empty (like at the start)
+                            if isinstance(item, dict):
+                                # Safely get the proficiency level abbreviation
+                                abbreviation = item.get('proficiency_level', {}).get('abbreviation')
 
-                            # Check if the abbreviation is NOT None (the filter)
-                            if abbreviation is not None:
-                                # If it's not None, extract the required information
-                                gp_abbr = item.get('grading_period', {}).get('abbreviation')
-                                rc_desc = item.get('rubric_criteria', {}).get('description')
+                                # Check if the abbreviation is NOT None (the filter)
+                                if abbreviation is not None:
+                                    # If it's not None, extract the required information
+                                    gp_abbr = item.get('grading_period', {}).get('abbreviation')
+                                    rc_desc = item.get('rubric_criteria', {}).get('description')
 
-                                # Create a new dictionary with the extracted data
-                                extracted_item = {
-                                    'class': class_name,  # The new field
-                                    'grading_period': gp_abbr,
-                                    'description': rc_desc,
-                                    'score': abbreviation
-                                }
+                                    # Create a new dictionary with the extracted data
+                                    extracted_item = {
+                                        'class': class_name,  # The new field
+                                        'grading_period': gp_abbr,
+                                        'description': rc_desc,
+                                        'score': abbreviation
+                                    }
 
-                                # Add this new dictionary to our processed list
-                                processed_data.append(extracted_item)
+                                    # Add this new dictionary to our processed list
+                                    processed_data.append(extracted_item)
+            elif st.session_state.grade_mode == "Numeric Grades":
+                quantitative_data = []
+                for i in range(0, len(enrollment_ids), 2):
+                    endpointSix = "report_card/enrollments/" + str(enrollment_ids[i]) + "/numeric_grades"
+                    qd = vc.pull("non", endpointSix)
+                    quantitative_data.append(qd)
+                    quantitative_data.append(enrollment_ids[i + 1])
+                    writingSpace.markdown(str(int((len(enrollment_ids) - i) / 2)) + " classes left to process.")
+                    if len(enrollment_ids) - i == 2:
+                        writingSpace.markdown("")
+
+                # Create an empty list to hold the processed data
+                processed_data = []
+                # Iterate through the main list using an index
+                # This allows us to look at the next item
+                for i in range(len(quantitative_data)):
+                    current_item = quantitative_data[i]
+
+                    # Check if the current item is a list (which might contain dicts)
+                    if isinstance(current_item, list):
+
+                        # The class name is the next item in the list
+                        class_name = None
+                        if (i + 1) < len(quantitative_data) and isinstance(quantitative_data[i + 1], str):
+                            class_name = quantitative_data[i + 1]
+                        for item in current_item:
+                            # We must check if 'item' is a dictionary,
+                            # because the list could be empty (like at the start)
+                            if isinstance(item, dict):
+                                # Safely get the proficiency level abbreviation
+                                abbreviation = item.get('posted_grade')
+
+                                # Check if the abbreviation is NOT None (the filter)
+                                if abbreviation != 0:
+                                    # If it's not None, extract the required information
+                                    gp_abbr = item.get('grading_period', {}).get('abbreviation')
+                                    rc_desc = item.get('grading_period', {}).get('description')
+                                    pg_lett = item.get('posted_letter_grade')
+
+                                    # Create a new dictionary with the extracted data
+                                    extracted_item = {
+                                        'class': class_name,  # The new field
+                                        'grading_period': gp_abbr,
+                                        'description': rc_desc,
+                                        'score': abbreviation,
+                                        'letter_grade': pg_lett
+                                    }
+
+                                    # Add this new dictionary to our processed list
+                                    processed_data.append(extracted_item)
+            else:
+                st.error("Choose a grade mode.")
+
+
 
             # Creates the table with alignment for numeric columns and a different style
             df = pd.DataFrame(processed_data)
@@ -347,85 +412,85 @@ if st.session_state.phase == "collecting":
                     file_name="student_data.csv",
                     mime="text/csv"
                 )
+            if st.session_state.grade_mode == "Interims":
+                # Data Visualization
+                with tab_chart:
+                    st.caption("Charts for interim scores for each class.")
 
-            # Data Visualization - to do
-            with tab_chart:
-                st.caption("Charts for interim scores for each class.")
+                    # --- Prep + ordering ---
+                    f = df.copy()
+                    f["grading_period"] = f["grading_period"].astype(str)
+                    f["score"] = pd.to_numeric(f["score"], errors="coerce")
 
-                # --- Prep + ordering ---
-                f = df.copy()
-                f["grading_period"] = f["grading_period"].astype(str)
-                f["score"] = pd.to_numeric(f["score"], errors="coerce")
+                    def _period_num(s: str) -> int:
+                        m = re.search(r"(\d+)$", s or "")
+                        return int(m.group(1)) if m else 9999
 
-                def _period_num(s: str) -> int:
-                    m = re.search(r"(\d+)$", s or "")
-                    return int(m.group(1)) if m else 9999
+                    ordered_periods = sorted(f["grading_period"].dropna().unique(), key=_period_num)
+                    f["grading_period"] = pd.Categorical(
+                        f["grading_period"], categories=ordered_periods, ordered=True
+                    )
 
-                ordered_periods = sorted(f["grading_period"].dropna().unique(), key=_period_num)
-                f["grading_period"] = pd.Categorical(
-                    f["grading_period"], categories=ordered_periods, ordered=True
-                )
+                    classes = sorted(f["class"].dropna().unique())
+                    descriptions = sorted(f["description"].dropna().unique())
 
-                classes = sorted(f["class"].dropna().unique())
-                descriptions = sorted(f["description"].dropna().unique())
+                    if f.empty or not classes:
+                        st.info("No data available to plot.")
+                        st.stop()
 
-                if f.empty or not classes:
-                    st.info("No data available to plot.")
-                    st.stop()
+                    # --- One tab per class ---
+                    tabs = st.tabs(classes)
+                    for tab, cls in zip(tabs, classes):
+                        with tab:
+                            st.subheader(cls)
 
-                # --- One tab per class ---
-                tabs = st.tabs(classes)
-                for tab, cls in zip(tabs, classes):
-                    with tab:
-                        st.subheader(cls)
+                            sub = f[f["class"] == cls]
+                            if sub.empty:
+                                st.write("No rows for this class.")
+                                continue
 
-                        sub = f[f["class"] == cls]
-                        if sub.empty:
-                            st.write("No rows for this class.")
-                            continue
-
-                        # Pivot: rows = grading_period, columns = description, values = score
-                        pivot = (
-                            sub.pivot_table(
-                                index="grading_period",
-                                columns="description",
-                                values="score",
-                                aggfunc="mean",  # use 'first' if each combo is unique
+                            # Pivot: rows = grading_period, columns = description, values = score
+                            pivot = (
+                                sub.pivot_table(
+                                    index="grading_period",
+                                    columns="description",
+                                    values="score",
+                                    aggfunc="mean",  # use 'first' if each combo is unique
+                                )
+                                .sort_index()
                             )
-                            .sort_index()
-                        )
 
-                        # Download CSV for this class
-                        csv_bytes = pivot.reset_index().to_csv(index=False).encode("utf-8")
-                        st.download_button(
-                            label=f"📥 Download {cls} data (CSV)",
-                            data=csv_bytes,
-                            file_name=f"{cls.replace(' ', '_').lower()}_trends.csv",
-                            mime="text/csv",
-                            key=f"dl_{cls}"
-                        )
-
-                        # Plot: one figure per class; no subplots, no explicit colors
-                        fig, ax = plt.subplots(figsize=(8, 4.5))
-                        for desc in pivot.columns:
-                            ax.plot(
-                                pivot.index.astype(str),
-                                pivot[desc],
-                                marker="o",
-                                label=str(desc),
+                            # Download CSV for this class
+                            csv_bytes = pivot.reset_index().to_csv(index=False).encode("utf-8")
+                            st.download_button(
+                                label=f"📥 Download {cls} data (CSV)",
+                                data=csv_bytes,
+                                file_name=f"{cls.replace(' ', '_').lower()}_trends.csv",
+                                mime="text/csv",
+                                key=f"dl_{cls}"
                             )
-                        ax.set_xlabel("Grading Period")
-                        ax.set_ylabel("Score")
-                        ax.set_title(f"{cls} — Scores by Description")
-                        ax.grid(True, linestyle="--", alpha=0.3)
-                        # Force 0–5 scale regardless of data
-                        ax.set_ylim(0.5, 5.5)
-                        ax.set_yticks([1, 2, 3, 4, 5])
-                        ax.legend(loc="best")
-                        st.pyplot(fig)
 
-                        with st.expander("Show rows for this class"):
-                            st.dataframe(sub.sort_values(["grading_period", "description"]))
+                            # Plot: one figure per class; no subplots, no explicit colors
+                            fig, ax = plt.subplots(figsize=(8, 4.5))
+                            for desc in pivot.columns:
+                                ax.plot(
+                                    pivot.index.astype(str),
+                                    pivot[desc],
+                                    marker="o",
+                                    label=str(desc),
+                                )
+                            ax.set_xlabel("Grading Period")
+                            ax.set_ylabel("Score")
+                            ax.set_title(f"{cls} — Scores by Description")
+                            ax.grid(True, linestyle="--", alpha=0.3)
+                            # Force 0–5 scale regardless of data
+                            ax.set_ylim(0.5, 5.5)
+                            ax.set_yticks([1, 2, 3, 4, 5])
+                            ax.legend(loc="best")
+                            st.pyplot(fig)
+
+                            with st.expander("Show rows for this class"):
+                                st.dataframe(sub.sort_values(["grading_period", "description"]))
 
             st.divider()
             left, right = st.columns([1, 1])
