@@ -68,9 +68,6 @@ if auth_status is True:
     st.page_link("pages/app.py", label="Open: Student Interim Search")
     if st.button("Go now", key="goto-app"):
         st.switch_page("pages/app.py")
-
-elif auth_status is False:
-    st.error("Invalid username or password.")
 else:
     st.info("Please sign in.")
 
